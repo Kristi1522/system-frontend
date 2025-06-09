@@ -1,5 +1,3 @@
-/* eslint-disable no-unused-vars */ // Ky koment ndalon një paralajmërim nga ESLint nëse ka variabla që nuk përdoren
-
 import { useState } from 'react'; // Hook nga React për të menaxhuar gjendjen lokale të komponentit
 import axios from 'axios'; // Libraria për thirrje HTTP
 
