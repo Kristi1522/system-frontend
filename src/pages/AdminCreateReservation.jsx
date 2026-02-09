@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
-import "./adminForms.css";
+import "./AdminCreateReservation.css";
 
 export default function AdminCreateReservation() {
   const [users, setUsers] = useState([]);
