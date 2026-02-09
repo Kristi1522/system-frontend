@@ -1,130 +1,160 @@
-// Importimi i hooks nga React dhe libraria axios për thirrje HTTP
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { API_URL } from "../config"; // URL-ja bazë e API-së, ruajtur në një skedar konfigurimi
+import { API_URL } from "../config";
+import "./AdminCreateMeeting.css";
 
-// Komponenti kryesor për krijimin e takimeve nga admini
 export default function AdminCreateMeeting() {
-  // Gjendjet për inputet e formës
-  const [users, setUsers] = useState([]);        // Lista e përdoruesve
-  const [userId, setUserId] = useState("");      // ID e përdoruesit të përzgjedhur
-  const [date, setDate] = useState("");          // Data e takimit
-  const [hour, setHour] = useState("");          // Ora e takimit
-  const [topic, setTopic] = useState("");        // Tema e takimit
+  const [users, setUsers] = useState([]);
+  const [userId, setUserId] = useState("");
+  const [date, setDate] = useState("");
+  const [hour, setHour] = useState("");
+  const [topic, setTopic] = useState("");
 
-  // Merr të dhënat e përdoruesit aktual nga localStorage
-  const user = JSON.parse(localStorage.getItem("user"));
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // useEffect për të ngarkuar përdoruesit kur komponenti ngarkohet
+  const user = useMemo(() => {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  }, []);
+
   useEffect(() => {
     const fetchUsers = async () => {
+      if (!user?.token) return;
       try {
-        // Thirrje GET për të marrë të gjithë përdoruesit
+        setLoadingUsers(true);
         const res = await axios.get(`${API_URL}/api/users`, {
-          headers: { Authorization: `Bearer ${user.token}` }, // Header me token autentikimi
+          headers: { Authorization: `Bearer ${user.token}` },
         });
-        setUsers(res.data); // Ruaj përdoruesit në state
+        setUsers(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
-        console.error("Gabim gjatë marrjes së përdoruesve:", err);
+        console.error("Gabim gjate marrjes se perdoruesve:", err);
+      } finally {
+        setLoadingUsers(false);
       }
     };
 
-    fetchUsers(); // Thirrja e funksionit
-  }, []);
+    fetchUsers();
+  }, [user]);
 
-  // Funksioni që përpunon dërgimin e formës
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Parandalon rifreskimin e faqes
+    e.preventDefault();
+
+    if (!user?.token) {
+      alert("❌ Duhet te jesh i loguar (token mungon).");
+      return;
+    }
+    if (!userId || !date || !hour || !topic.trim()) {
+      alert("❌ Ploteso te gjitha fushat.");
+      return;
+    }
 
     try {
-      // Dërgon të dhënat e takimit me metodën POST
+      setSubmitting(true);
       await axios.post(
         `${API_URL}/api/meetings/by-admin`,
-        { userId, date, hour, topic },
-        { headers: { Authorization: `Bearer ${user.token}` } } // Autentikim me token
+        { userId, date, hour, topic: topic.trim() },
+        { headers: { Authorization: `Bearer ${user.token}` } }
       );
-      alert("✅ Takimi u krijua me sukses!");
 
-      // Pastrimi i inputeve pas suksesit
+      alert("✅ Takimi u krijua me sukses!");
       setUserId("");
       setDate("");
       setHour("");
       setTopic("");
     } catch (err) {
-      console.error("❌ Gabim gjatë krijimit të takimit:", err);
-      alert("Gabim gjatë krijimit të takimit.");
+      console.error("❌ Gabim gjate krijimit te takimit:", err);
+      alert("Gabim gjate krijimit te takimit.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // JSX që kthen formën për krijimin e takimit
   return (
-    <div className="min-h-screen p-6 bg-background text-textdark">
-      <h2 className="text-3xl font-bold mb-6 text-primary">➕ Shto Takim</h2>
+    <div className="am-page">
+      <div className="am-shell">
+        <header className="am-head">
+          <div className="am-badge">Admin • Meetings</div>
+          <h2 className="am-title">Shto Takim</h2>
+          <p className="am-subtitle">
+            Zgjidh perdoruesin dhe cakto daten/oren me nje teme te shkurter.
+          </p>
+        </header>
 
-      <form onSubmit={handleSubmit} className="bg-white shadow-md rounded-lg p-6 max-w-xl mx-auto space-y-4">
-        {/* Zgjedhja e përdoruesit */}
-        <div>
-          <label className="block mb-1 font-medium">Përdoruesi:</label>
-          <select
-            className="w-full border px-3 py-2 rounded"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            required
-          >
-            <option value="">-- Zgjidh përdoruesin --</option>
-            {users.map((u) => (
-              <option key={u._id} value={u._id}>
-                {u.email}
-              </option>
-            ))}
-          </select>
-        </div>
+        <form onSubmit={handleSubmit} className="am-card">
+          <div className="am-grid">
+            <label className="am-field">
+              <span className="am-label">Perdoruesi</span>
+              <div className="am-selectWrap">
+                <select
+                  className="am-select"
+                  value={userId}
+                  onChange={(e) => setUserId(e.target.value)}
+                  required
+                  disabled={loadingUsers || !user?.token}
+                >
+                  <option value="">
+                    {loadingUsers ? "Duke ngarkuar..." : "-- Zgjidh perdoruesin --"}
+                  </option>
+                  {users.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.email}
+                    </option>
+                  ))}
+                </select>
+                <span className="am-selectIcon" aria-hidden="true">▾</span>
+              </div>
 
-        {/* Fusha për datën e takimit */}
-        <div>
-          <label className="block mb-1 font-medium">Data:</label>
-          <input
-            type="date"
-            className="w-full border px-3 py-2 rounded"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
-        </div>
+              {!user?.token ? (
+                <span className="am-help am-help--warn">Duhet login per te pare perdoruesit.</span>
+              ) : null}
+            </label>
 
-        {/* Fusha për orën e takimit */}
-        <div>
-          <label className="block mb-1 font-medium">Ora:</label>
-          <input
-            type="time"
-            className="w-full border px-3 py-2 rounded"
-            value={hour}
-            onChange={(e) => setHour(e.target.value)}
-            required
-          />
-        </div>
+            <label className="am-field">
+              <span className="am-label">Data</span>
+              <input
+                type="date"
+                className="am-input"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
+            </label>
 
-        {/* Fusha për temën e takimit */}
-        <div>
-          <label className="block mb-1 font-medium">Tema:</label>
-          <input
-            type="text"
-            className="w-full border px-3 py-2 rounded"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="Shembull: Mbledhje mujore"
-            required
-          />
-        </div>
+            <label className="am-field">
+              <span className="am-label">Ora</span>
+              <input
+                type="time"
+                className="am-input"
+                value={hour}
+                onChange={(e) => setHour(e.target.value)}
+                required
+              />
+            </label>
 
-        {/* Butoni për të krijuar takimin */}
-        <button
-          type="submit"
-          className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded w-full"
-        >
-          Krijo Takim
-        </button>
-      </form>
+            <label className="am-field am-field--full">
+              <span className="am-label">Tema</span>
+              <input
+                type="text"
+                className="am-input"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="Shembull: Mbledhje mujore"
+                required
+              />
+            </label>
+          </div>
+
+          <button className="am-btn" type="submit" disabled={submitting || !user?.token}>
+            {submitting ? "Duke krijuar..." : "Krijo Takim"}
+            <span className="am-btnGlow" aria-hidden="true" />
+          </button>
+
+          <p className="am-hint">
+            Sugjerim: perdor teme te shkurter (5–7 fjale) qe te duket bukur ne liste.
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

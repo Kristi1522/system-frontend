@@ -1,86 +1,101 @@
-// Importimi i hook-ëve të nevojshëm nga React dhe React Router
-import { useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import "./login.css";
 
-// URL-ja bazë e backend-it
 const API_URL = "https://system-backend-0i7a.onrender.com";
 
-// Komponenti për login që pranon setUser si props
 export default function Login({ setUser }) {
-  // Gjendja për ruajtjen e input-eve nga përdoruesi
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const navigate = useNavigate(); // Hook për navigim
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  // Funksioni që trajton login-in kur dorëzohet forma
+  const [loading, setLoading] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
+
+  const navigate = useNavigate();
+
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Ndalo reload-in e faqes
+    e.preventDefault();
+    setErrMsg("");
 
     try {
-      // Kërkesa POST për autentikim te backend-i
+      setLoading(true);
       const res = await axios.post(`${API_URL}/auth/login`, { email, password });
 
-      // Nëse login-i është i suksesshëm
       if (res.status === 200) {
-        // Ruaj të dhënat në localStorage për përdorim të mëvonshëm
-        localStorage.setItem('user', JSON.stringify(res.data));
-        localStorage.setItem('token', res.data.token);
-        setUser(res.data); // Përditëso gjendjen globale të user-it
+        localStorage.setItem("user", JSON.stringify(res.data));
+        localStorage.setItem("token", res.data.token);
+        setUser(res.data);
 
-        // Sipas rolit, dërgo përdoruesin në faqen përkatëse
-        if (res.data.role === "admin") {
-          navigate("/admin");
-        } else {
-          navigate("/orders");
-        }
+        if (res.data.role === "admin") navigate("/admin");
+        else navigate("/orders");
       } else {
-        alert('Incorrect login!');
+        setErrMsg("Incorrect login!");
       }
     } catch (err) {
-      // Në rast gabimi, shfaq mesazh dhe log error-in
-      console.error('❌ Error during login:', err.response?.data || err.message);
-      alert('Incorrect email or password!');
+      console.error("Error during login:", err.response?.data || err.message);
+      setErrMsg("Incorrect email or password!");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // JSX për formën e login-it
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <form
-        className="bg-white p-8 rounded-lg shadow-md w-full max-w-md flex flex-col gap-6"
-        onSubmit={handleSubmit}
-      >
-        <h2 className="text-3xl font-bold text-center text-primary">Login</h2>
+    <div className="lg-page">
+      <div className="lg-shell">
+        <div className="lg-card">
+          <div className="lg-head">
+            <div className="lg-badge">Secure Access</div>
+            <h2 className="lg-title">Login</h2>
+            <p className="lg-subtitle">Shkruaj kredencialet per te vazhduar.</p>
+          </div>
 
-        {/* Input për email */}
-        <input
-          className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+          {errMsg ? (
+            <div className="lg-error" role="alert">
+              <div className="lg-errorTitle">Gabim</div>
+              <div className="lg-errorMsg">{errMsg}</div>
+            </div>
+          ) : null}
 
-        {/* Input për fjalëkalim */}
-        <input
-          className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+          <form className="lg-form" onSubmit={handleSubmit}>
+            <label className="lg-field">
+              <span className="lg-label">Email</span>
+              <input
+                className="lg-input"
+                type="email"
+                placeholder="email@domain.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
+            </label>
 
-        {/* Butoni për login */}
-        <button
-          type="submit"
-          className="bg-primary text-white py-3 rounded-lg font-semibold hover:bg-secondary transition"
-        >
-          Login
-        </button>
-      </form>
+            <label className="lg-field">
+              <span className="lg-label">Password</span>
+              <input
+                className="lg-input"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </label>
+
+            <button type="submit" className="lg-btn" disabled={loading}>
+              {loading ? "Signing in..." : "Login"}
+              <span className="lg-btnGlow" aria-hidden="true" />
+            </button>
+          </form>
+
+          <div className="lg-foot">
+            <span className="lg-footText">Tip:</span>
+            <span className="lg-footSub">Per admin do te ridrejtohesh te /admin.</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

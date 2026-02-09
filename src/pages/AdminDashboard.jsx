@@ -1,218 +1,300 @@
-// Importime të hooks dhe librarive nga React dhe libraria e ikonave lucide-react
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, FileText, BarChart2, LogOut, Pencil, Trash2,
-  UserPlus, PlusSquare, CalendarDays, CalendarPlus,
+  LayoutDashboard,
+  FileText,
+  BarChart2,
+  LogOut,
+  Pencil,
+  Trash2,
+  UserPlus,
+  PlusSquare,
+  CalendarDays,
+  CalendarPlus,
 } from "lucide-react";
 import axios from "axios";
+import "./adminDashboard.css";
 
-// URL-ja e backend-it
 const API_URL = "https://system-backend-0i7a.onrender.com";
 
-// Lista me opsione të navigimit në sidebar
 const menu = [
-  { name: "Dashboard", icon: <LayoutDashboard />, path: "/" },
-  { name: "Orders", icon: <FileText />, path: "/orders" },
-  { name: "Reports", icon: <BarChart2 />, path: "/reports" },
+  { name: "Dashboard", icon: LayoutDashboard, path: "/" },
+  { name: "Orders", icon: FileText, path: "/orders" },
+  { name: "Reports", icon: BarChart2, path: "/reports" },
 ];
 
-// Lista e veprimeve të disponueshme për adminin (akses nga dashboard)
 const actions = [
-  { name: "Add Dish", icon: <PlusSquare />, path: "/add-dish" },
-  { name: "Edit Menu", icon: <Pencil />, path: "/edit-menu" },
-  { name: "Delete Dish", icon: <Trash2 />, path: "/delete-dish" },
-  { name: "Register User", icon: <UserPlus />, path: "/register-user" },
-  { name: "Daily Summary", icon: <CalendarDays />, path: "/daily-summary" },
-  { name: "Create Reservation", icon: <CalendarPlus />, path: "/admin-create-reservation" },
+  { name: "Add Dish", icon: PlusSquare, path: "/add-dish" },
+  { name: "Edit Menu", icon: Pencil, path: "/edit-menu" },
+  { name: "Delete Dish", icon: Trash2, path: "/delete-dish" },
+  { name: "Register User", icon: UserPlus, path: "/register-user" },
+  { name: "Daily Summary", icon: CalendarDays, path: "/daily-summary" },
+  { name: "Create Reservation", icon: CalendarPlus, path: "/admin-create-reservation" },
 ];
 
-// Komponenti kryesor i dashboard-it të adminit
 export default function AdminDashboard() {
-  const [selected, setSelected] = useState("Dashboard"); // Pika e zgjedhur në menu
-  const [summary, setSummary] = useState({ totalIncome: 0, totalOrders: 0, orders: [] }); // Të dhëna përmbledhëse
-  const [expandedUsers, setExpandedUsers] = useState({}); // Gjurmim i përdoruesve me lista të zgjeruara
-  const token = localStorage.getItem("token"); // Merr tokenin nga localStorage
-  const navigate = useNavigate(); // Hook për navigim programatik
+  const [selected, setSelected] = useState("Dashboard");
+  const [summary, setSummary] = useState({
+    totalIncome: 0,
+    totalOrders: 0,
+    orders: [],
+  });
+  const [expandedUsers, setExpandedUsers] = useState({});
+  const [loading, setLoading] = useState(false);
 
-  // Thirrje për të marrë përmbledhjen kur komponenti ngarkohet
-  useEffect(() => {
-    fetchSummary();
+  const navigate = useNavigate();
+
+  const token = useMemo(() => {
+    // ne kodin tend ke localStorage.getItem("token")
+    // nese projekti ruan user si JSON, do e rregullojme kur te me nisesh auth flow.
+    return localStorage.getItem("token") || "";
   }, []);
 
-  // Merr të dhënat e përmbledhura nga API
+  useEffect(() => {
+    fetchSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchSummary = async () => {
     try {
+      setLoading(true);
       const res = await axios.get(`${API_URL}/orders/summary`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setSummary(res.data); // Ruaj përmbledhjen në state
+      setSummary(res.data);
     } catch (err) {
-      console.error("❌ Error fetching summary:", err.message);
+      console.error("Error fetching summary:", err?.message || err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Funksion për të hapur/mbyllur porositë sipas email-it
   const toggleExpand = (email) => {
-    setExpandedUsers((prev) => ({
-      ...prev,
-      [email]: !prev[email],
-    }));
+    setExpandedUsers((prev) => ({ ...prev, [email]: !prev[email] }));
   };
 
-  // Fshin një porosi në bazë të ID-së
   const handleDeleteOrder = async (orderId) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this order?");
-    if (!confirmDelete) return;
+    const ok = window.confirm("Are you sure you want to delete this order?");
+    if (!ok) return;
 
     try {
       await axios.delete(`${API_URL}/orders/${orderId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // Përditëso listën e porosive lokale pa nevojë për rikthim nga backend
       setSummary((prev) => {
-        const newOrders = prev.orders.filter((order) => order._id !== orderId);
-        return {
-          ...prev,
-          orders: newOrders,
-          totalOrders: newOrders.length,
-        };
+        const newOrders = prev.orders.filter((o) => o._id !== orderId);
+        return { ...prev, orders: newOrders, totalOrders: newOrders.length };
       });
 
       alert("✅ Order deleted successfully!");
     } catch (err) {
-      console.error("❌ Error deleting the order:", err.message);
+      console.error("Error deleting the order:", err?.message || err);
       alert("Error deleting the order.");
     }
   };
 
-  // Grupimi i porosive sipas përdoruesit (email-it)
-  const ordersByUser = summary.orders.reduce((acc, order) => {
-    if (!acc[order.userEmail]) acc[order.userEmail] = [];
-    acc[order.userEmail].push(order);
+  const ordersByUser = (summary.orders || []).reduce((acc, order) => {
+    const key = order.userEmail || "Unknown";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(order);
     return acc;
   }, {});
 
-  return (
-    <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar-i i majtë */}
-      <aside className="w-64 bg-white border-r shadow-sm p-4">
-        <h1 className="text-xl font-bold mb-6">Restorant Admin</h1>
+  const onMenuClick = (item) => {
+    setSelected(item.name);
+    navigate(item.path);
+  };
 
-        {/* Menu kryesore */}
-        <nav className="space-y-2">
-          {menu.map((item) => (
-            <button
-              key={item.name}
-              onClick={() => {
-                setSelected(item.name);
-                navigate(item.path);
-              }}
-              className={`flex items-center w-full text-left gap-3 p-2 rounded-lg hover:bg-gray-100 transition ${
-                selected === item.name ? "bg-gray-200 font-semibold" : ""
-              }`}
-            >
-              {item.icon} {item.name}
-            </button>
-          ))}
+  const onLogout = () => {
+    // s’e di auth flow tendin. Ky eshte default i paster.
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
+
+  return (
+    <div className="ad-layout">
+      <aside className="ad-side">
+        <div className="ad-brand">
+          <div className="ad-logo" aria-hidden="true">R</div>
+          <div className="ad-brandText">
+            <div className="ad-brandTitle">Restorant Admin</div>
+            <div className="ad-brandSub">Control Panel</div>
+          </div>
+        </div>
+
+        <nav className="ad-nav">
+          {menu.map((item) => {
+            const Icon = item.icon;
+            const active = selected === item.name;
+            return (
+              <button
+                key={item.name}
+                type="button"
+                onClick={() => onMenuClick(item)}
+                className={`ad-navItem ${active ? "is-active" : ""}`}
+              >
+                <span className="ad-navIcon" aria-hidden="true">
+                  <Icon size={18} />
+                </span>
+                <span className="ad-navLabel">{item.name}</span>
+                <span className="ad-navDot" aria-hidden="true" />
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Butoni për logout */}
-        <div className="absolute bottom-4 left-4 right-4">
-          <button className="w-full flex items-center gap-2 justify-start text-sm text-gray-700 hover:text-red-600">
-            <LogOut className="w-4 h-4" /> Log out
+        <div className="ad-sideFooter">
+          <button type="button" className="ad-logout" onClick={onLogout}>
+            <LogOut size={16} />
+            <span>Log out</span>
           </button>
+          <div className="ad-footNote">v1 • UI clean</div>
         </div>
       </aside>
 
-      {/* Përmbajtja kryesore */}
-      <main className="flex-1 p-6">
-        <h2 className="text-2xl font-semibold mb-4">{selected}</h2>
+      <main className="ad-main">
+        <header className="ad-topbar">
+          <div>
+            <h2 className="ad-title">{selected}</h2>
+            <p className="ad-subtitle">
+              {selected === "Dashboard"
+                ? "Overview i shpejte i biznesit."
+                : selected === "Orders"
+                ? "Porosite te grupuara sipas perdoruesit."
+                : "Raporte dhe analiza."}
+            </p>
+          </div>
 
-        {/* Seksioni i dashboard-it */}
+          <div className="ad-topbarActions">
+            <button type="button" className="ad-btnGhost" onClick={fetchSummary}>
+              Refresh
+            </button>
+            <span className={`ad-pill ${loading ? "is-loading" : ""}`}>
+              {loading ? "Loading..." : "Live"}
+            </span>
+          </div>
+        </header>
+
         {selected === "Dashboard" && (
           <>
-            <div className="space-y-6">
-              {/* Kartat për Total Income dhe Total Orders */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-xl border bg-white p-6 shadow-sm">
-                  <h3 className="text-lg font-medium text-gray-700">Total Income</h3>
-                  <p className="text-2xl font-bold mt-2">{summary.totalIncome}€</p>
-                </div>
-                <div className="rounded-xl border bg-white p-6 shadow-sm">
-                  <h3 className="text-lg font-medium text-gray-700">Total Orders</h3>
-                  <p className="text-2xl font-bold mt-2">{summary.totalOrders}</p>
-                </div>
+            <section className="ad-grid2">
+              <div className="ad-card ad-card--stat">
+                <div className="ad-statLabel">Total Income</div>
+                <div className="ad-statValue">{summary.totalIncome}€</div>
+                <div className="ad-statHint">Te ardhura totale</div>
               </div>
-            </div>
 
-            {/* Seksioni për veprimet e shpejta në menaxhimin e menysë */}
-            <div className="bg-white shadow-md rounded-lg p-6 mt-10">
-              <h3 className="text-xl font-semibold mb-4 text-secondary">🛠️ Menu Management</h3>
-              <ul className="space-y-3">
-                {actions.map((action) => (
-                  <li key={action.name}>
-                    <Link
-                      to={action.path}
-                      className="flex items-center gap-2 text-primary hover:text-highlight transition"
-                    >
-                      {action.icon} {action.name}
+              <div className="ad-card ad-card--stat">
+                <div className="ad-statLabel">Total Orders</div>
+                <div className="ad-statValue">{summary.totalOrders}</div>
+                <div className="ad-statHint">Porosi gjithsej</div>
+              </div>
+            </section>
+
+            <section className="ad-card ad-card--actions">
+              <div className="ad-cardHead">
+                <h3 className="ad-cardTitle">Menu Management</h3>
+                <p className="ad-cardDesc">Veprime te shpejta per menaxhim.</p>
+              </div>
+
+              <div className="ad-actions">
+                {actions.map((a) => {
+                  const Icon = a.icon;
+                  return (
+                    <Link key={a.name} to={a.path} className="ad-action">
+                      <span className="ad-actionIcon" aria-hidden="true">
+                        <Icon size={18} />
+                      </span>
+                      <span className="ad-actionText">{a.name}</span>
+                      <span className="ad-actionArrow" aria-hidden="true">→</span>
                     </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                  );
+                })}
+              </div>
+            </section>
           </>
         )}
 
-        {/* Seksioni i porosive sipas përdoruesve */}
         {selected === "Orders" && (
-          <div className="space-y-6">
-            <h3 className="text-xl font-semibold">Orders by Waiters</h3>
-            {Object.keys(ordersByUser).map((email) => (
-              <div key={email} className="mb-6 bg-white rounded-lg shadow p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="text-lg font-semibold">👤 {email}</h4>
-                  <button
-                    onClick={() => toggleExpand(email)}
-                    className="bg-primary text-white px-3 py-1 rounded hover:bg-secondary transition"
-                  >
-                    {expandedUsers[email] ? "Hide" : "Show"}
-                  </button>
-                </div>
+          <section className="ad-orders">
+            <div className="ad-ordersHead">
+              <h3 className="ad-cardTitle">Orders by Waiters</h3>
+              <p className="ad-cardDesc">
+                Kliko Show per te pare tabelen e porosive per secilin.
+              </p>
+            </div>
 
-                {/* Tabela e porosive për përdoruesin e zgjeruar */}
-                {expandedUsers[email] && (
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="p-2">Total</th>
-                        <th className="p-2">Date</th>
-                        <th className="p-2">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ordersByUser[email].map((order) => (
-                        <tr key={order._id} className="border-b hover:bg-gray-100">
-                          <td className="p-2">{order.total}€</td>
-                          <td className="p-2">{new Date(order.createdAt).toLocaleString()}</td>
-                          <td className="p-2">
-                            <button
-                              onClick={() => handleDeleteOrder(order._id)}
-                              className="text-red-600 hover:text-red-800 font-semibold transition"
-                            >
-                              ❌ Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ))}
-          </div>
+            <div className="ad-ordersList">
+              {Object.keys(ordersByUser).length === 0 ? (
+                <div className="ad-empty">
+                  <div className="ad-emptyTitle">Nuk ka porosi</div>
+                  <div className="ad-emptySub">Kur te kete, do shfaqen ketu.</div>
+                </div>
+              ) : (
+                Object.keys(ordersByUser).map((email) => (
+                  <div key={email} className="ad-orderCard">
+                    <div className="ad-orderCardTop">
+                      <div className="ad-user">
+                        <div className="ad-userAvatar" aria-hidden="true">
+                          {String(email).slice(0, 1).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="ad-userTitle">{email}</div>
+                          <div className="ad-userMeta">
+                            {ordersByUser[email].length} orders
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="ad-btn"
+                        onClick={() => toggleExpand(email)}
+                      >
+                        {expandedUsers[email] ? "Hide" : "Show"}
+                        <span className="ad-btnGlow" aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    {expandedUsers[email] && (
+                      <div className="ad-tableWrap">
+                        <table className="ad-table">
+                          <thead>
+                            <tr>
+                              <th>Total</th>
+                              <th>Date</th>
+                              <th className="ad-thRight">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ordersByUser[email].map((order) => (
+                              <tr key={order._id}>
+                                <td className="ad-tdStrong">{order.total}€</td>
+                                <td className="ad-tdMuted">
+                                  {new Date(order.createdAt).toLocaleString()}
+                                </td>
+                                <td className="ad-tdRight">
+                                  <button
+                                    type="button"
+                                    className="ad-linkDanger"
+                                    onClick={() => handleDeleteOrder(order._id)}
+                                  >
+                                    Delete
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         )}
       </main>
     </div>

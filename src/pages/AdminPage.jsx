@@ -1,167 +1,246 @@
-// Importime të hooks dhe librarive për thirrje API dhe navigim
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import "./adminPanel.css";
 
-// URL-ja bazë e backend-it
 const API_URL = "https://system-backend-0i7a.onrender.com";
 
-// Komponenti kryesor për panelin e adminit
 export default function AdminPage() {
-  const [users, setUsers] = useState([]); // Lista e përdoruesve ekzistues
-  const [newUser, setNewUser] = useState({ email: "", password: "" }); // Forma për përdorues të ri
-  const token = localStorage.getItem("token"); // Merr tokenin e përdoruesit
-  const navigate = useNavigate(); // Hook për navigim te faqe të tjera
+  const [users, setUsers] = useState([]);
+  const [newUser, setNewUser] = useState({ email: "", password: "" });
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Ngarko listën e përdoruesve kur ngarkohet komponenti
+  const navigate = useNavigate();
+
+  const token = useMemo(() => {
+    // tek disa file e ruan tokenin si "token", tek disa si user.token
+    // ketu po ruajme fallback te dyja.
+    const t = localStorage.getItem("token");
+    if (t) return t;
+    const raw = localStorage.getItem("user");
+    const u = raw ? JSON.parse(raw) : null;
+    return u?.token || "";
+  }, []);
+
   useEffect(() => {
     fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Merr përdoruesit nga backend
   const fetchUsers = async () => {
+    if (!token) return;
     try {
+      setLoadingUsers(true);
       const res = await axios.get(`${API_URL}/auth/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setUsers(res.data); // Ruaj të dhënat në state
+      setUsers(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Error fetching users:", err);
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
-  // Promovon një përdorues në admin
   const promoteUser = async (id) => {
     try {
-      await axios.put(`${API_URL}/auth/promote/${id}`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchUsers(); // Rifresko listën
+      await axios.put(
+        `${API_URL}/auth/promote/${id}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      fetchUsers();
     } catch (err) {
       console.error("Error promoting user:", err);
+      alert("Error promoting user.");
     }
   };
 
-  // Fshin një përdorues (me konfirmim paraprak)
   const deleteUser = async (id) => {
     if (!window.confirm("Are you sure you want to delete this user?")) return;
     try {
       await axios.delete(`${API_URL}/auth/user/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchUsers(); // Rifresko listën pas fshirjes
+      fetchUsers();
     } catch (err) {
       console.error("Error deleting user:", err);
+      alert("Error deleting user.");
     }
   };
 
-  // Përditëson formën për shtimin e përdoruesit të ri
   const handleNewUserChange = (e) => {
-    setNewUser({ ...newUser, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setNewUser((p) => ({ ...p, [name]: value }));
   };
 
-  // Dërgon kërkesën për të regjistruar përdoruesin e ri
   const handleNewUserSubmit = async () => {
-    if (!newUser.email || !newUser.password)
-      return alert("Please fill in all fields."); // Kontroll bosh
+    if (!newUser.email || !newUser.password) {
+      alert("Please fill in all fields.");
+      return;
+    }
 
     try {
+      setSubmitting(true);
       await axios.post(`${API_URL}/auth/register`, newUser, {
         headers: { Authorization: `Bearer ${token}` },
       });
       alert("✅ User successfully registered!");
-      setNewUser({ email: "", password: "" }); // Pastro formën
-      fetchUsers(); // Rifresko listën
+      setNewUser({ email: "", password: "" });
+      fetchUsers();
     } catch (err) {
       console.error("Error registering user:", err);
       alert("Error registering user.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // JSX për UI
   return (
-    <div className="min-h-screen bg-background p-6 text-textdark">
-      <h2 className="text-4xl font-bold text-primary mb-8">👑 Admin Panel</h2>
+    <div className="ap-page">
+      <div className="ap-shell">
+        <header className="ap-head">
+          <div className="ap-badge">Admin • Users</div>
+          <h2 className="ap-title">Admin Panel</h2>
+          <p className="ap-subtitle">Regjistro perdorues, jep role, menaxho listen.</p>
+        </header>
 
-      {/* Seksioni për shtimin e përdoruesit të ri */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-10">
-        <h3 className="text-2xl font-semibold text-secondary mb-4">➕ Add New User</h3>
-        <div className="flex flex-col gap-4 max-w-md">
-          <input
-            className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={newUser.email}
-            onChange={handleNewUserChange}
-          />
-          <input
-            className="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={newUser.password}
-            onChange={handleNewUserChange}
-          />
-          <button
-            onClick={handleNewUserSubmit}
-            className="bg-primary text-white py-3 rounded-lg font-semibold hover:bg-secondary transition"
-          >
-            Add
-          </button>
-        </div>
-      </div>
+        {!token ? (
+          <div className="ap-empty">
+            <div className="ap-emptyTitle">Duhet login</div>
+            <div className="ap-emptySub">Token mungon, s’mund te hapet paneli.</div>
+          </div>
+        ) : (
+          <>
+            <section className="ap-card">
+              <div className="ap-cardHead">
+                <div>
+                  <h3 className="ap-cardTitle">Add New User</h3>
+                  <p className="ap-cardDesc">Krijo nje user te ri (email + password).</p>
+                </div>
+                <span className={`ap-pill ${submitting ? "is-loading" : ""}`}>
+                  {submitting ? "Saving..." : "Ready"}
+                </span>
+              </div>
 
-      {/* Seksioni i listës së përdoruesve */}
-      <h3 className="text-2xl font-semibold text-secondary mb-4">📋 Users List</h3>
+              <div className="ap-form">
+                <label className="ap-field">
+                  <span className="ap-label">Email</span>
+                  <input
+                    className="ap-input"
+                    type="email"
+                    name="email"
+                    placeholder="email@domain.com"
+                    value={newUser.email}
+                    onChange={handleNewUserChange}
+                    autoComplete="off"
+                  />
+                </label>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white rounded-lg shadow-md overflow-hidden">
-          <thead className="bg-primary text-white">
-            <tr>
-              <th className="py-3 px-6 text-left">Email</th>
-              <th className="py-3 px-6 text-left">Role</th>
-              <th className="py-3 px-6 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u._id} className="border-b hover:bg-gray-100">
-                <td className="py-3 px-6">{u.email}</td>
-                <td className="py-3 px-6">{u.role}</td>
-                <td className="py-3 px-6 flex gap-2">
-                  {u.role !== "admin" && (
-                    <>
-                      <button
-                        onClick={() => promoteUser(u._id)}
-                        className="bg-highlight text-textdark px-3 py-1 rounded-lg font-medium hover:bg-amber-500 transition"
-                      >
-                        Promote
-                      </button>
-                      <button
-                        onClick={() => deleteUser(u._id)}
-                        className="bg-red-500 text-white px-3 py-1 rounded-lg font-medium hover:bg-red-700 transition"
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                <label className="ap-field">
+                  <span className="ap-label">Password</span>
+                  <input
+                    className="ap-input"
+                    type="password"
+                    name="password"
+                    placeholder="Password"
+                    value={newUser.password}
+                    onChange={handleNewUserChange}
+                    autoComplete="new-password"
+                  />
+                </label>
 
-      {/* Buton për kthim në dashboard */}
-      <div className="mt-8">
-        <button
-          className="bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-secondary transition"
-          onClick={() => navigate("/admin/dashboard")}
-        >
-          Go to Dashboard
-        </button>
+                <button
+                  type="button"
+                  onClick={handleNewUserSubmit}
+                  className="ap-btn"
+                  disabled={submitting}
+                >
+                  {submitting ? "Adding..." : "Add User"}
+                  <span className="ap-btnGlow" aria-hidden="true" />
+                </button>
+              </div>
+            </section>
+
+            <section className="ap-card ap-card--table">
+              <div className="ap-cardHead">
+                <div>
+                  <h3 className="ap-cardTitle">Users List</h3>
+                  <p className="ap-cardDesc">
+                    {loadingUsers ? "Duke ngarkuar..." : `${users.length} users`}
+                  </p>
+                </div>
+                <button type="button" className="ap-btnGhost" onClick={fetchUsers} disabled={loadingUsers}>
+                  Refresh
+                </button>
+              </div>
+
+              {users.length === 0 ? (
+                <div className="ap-empty ap-empty--inCard">
+                  <div className="ap-emptyTitle">Nuk ka users</div>
+                  <div className="ap-emptySub">Kur te shtohen, do shfaqen ketu.</div>
+                </div>
+              ) : (
+                <div className="ap-tableWrap">
+                  <table className="ap-table">
+                    <thead>
+                      <tr>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th className="ap-thRight">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u) => (
+                        <tr key={u._id}>
+                          <td className="ap-tdStrong">{u.email}</td>
+                          <td>
+                            <span className={`ap-role ${String(u.role).toLowerCase() === "admin" ? "is-admin" : ""}`}>
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="ap-tdRight">
+                            {u.role !== "admin" ? (
+                              <div className="ap-actions">
+                                <button
+                                  type="button"
+                                  onClick={() => promoteUser(u._id)}
+                                  className="ap-btnSmall ap-btnSmall--warn"
+                                >
+                                  Promote
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteUser(u._id)}
+                                  className="ap-btnSmall ap-btnSmall--danger"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="ap-muted">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <div className="ap-footer">
+              <button
+                type="button"
+                className="ap-btnGhost"
+                onClick={() => navigate("/admin/dashboard")}
+              >
+                Go to Dashboard →
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

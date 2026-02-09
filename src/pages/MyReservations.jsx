@@ -1,65 +1,106 @@
-// Importimi i hooks dhe axios për thirrje API
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
+import "./adminTables.css";
 
-// Komponenti për shfaqjen e rezervimeve të përdoruesit
 export default function MyReservations() {
-  const [reservations, setReservations] = useState([]); // Lista e rezervimeve
-  const user = JSON.parse(localStorage.getItem("user")); // Merr të dhënat e përdoruesit nga localStorage
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // useEffect për të marrë të dhënat sapo ngarkohet komponenti
+  const user = useMemo(() => {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  }, []);
+
   useEffect(() => {
     const fetchMyReservations = async () => {
+      if (!user?.token) return;
+
       try {
-        // Kërkesë GET për të marrë rezervimet personale nga API
+        setLoading(true);
         const res = await axios.get(`${API_URL}/api/reservations/my`, {
-          headers: {
-            Authorization: `Bearer ${user.token}`, // Përdor tokenin për autorizim
-          },
+          headers: { Authorization: `Bearer ${user.token}` },
         });
-        setReservations(res.data); // Ruaj rezervimet në state
+        setReservations(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
-        console.error("❌ Gabim gjatë marrjes së rezervimeve:", err);
+        console.error("Gabim gjate marrjes se rezervimeve:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchMyReservations(); // Thirr funksionin për të marrë rezervimet
-  }, []);
+    fetchMyReservations();
+  }, [user]);
 
-  // JSX për të paraqitur rezervimet
+  const statusClass = (s) => {
+    const v = String(s || "").toLowerCase();
+    if (v.includes("approved") || v.includes("confirmed") || v.includes("done") || v.includes("ok"))
+      return "at-badge at-ok";
+    if (v.includes("pending") || v.includes("wait"))
+      return "at-badge at-warn";
+    if (v.includes("reject") || v.includes("cancel"))
+      return "at-badge at-bad";
+    return "at-badge";
+  };
+
   return (
-    <div className="min-h-screen p-6 bg-background text-textdark">
-      <h2 className="text-3xl font-bold mb-6 text-primary">📅 Rezervimet e mia</h2>
+    <div className="at-page">
+      <div className="at-shell">
+        <header className="at-head">
+          <div className="at-badgeTop">User • Reservations</div>
 
-      {/* Nëse nuk ka rezervime, shfaq mesazhin përkatës */}
-      {reservations.length === 0 ? (
-        <p className="text-gray-500">Nuk keni asnjë rezervim.</p>
-      ) : (
-        // Tabela me rezervimet ekzistuese
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-md">
-            <thead className="bg-gray-100 text-left text-sm font-semibold text-gray-700">
-              <tr>
-                <th className="py-3 px-4 border-b">Data</th>
-                <th className="py-3 px-4 border-b">Ora</th>
-                <th className="py-3 px-4 border-b">Persona</th>
-                <th className="py-3 px-4 border-b">Statusi</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm text-gray-700">
-              {reservations.map((r) => (
-                <tr key={r._id} className="hover:bg-gray-50 transition">
-                  <td className="py-2 px-4 border-b">{new Date(r.date).toLocaleDateString()}</td>
-                  <td className="py-2 px-4 border-b">{r.time}</td>
-                  <td className="py-2 px-4 border-b">{r.peopleCount}</td>
-                  <td className="py-2 px-4 border-b">{r.status}</td>
+          <div className="at-headRow">
+            <h2 className="at-title">Rezervimet e mia</h2>
+          </div>
+
+          <p className="at-subtitle">Ketu shikon rezervimet e tua dhe statusin.</p>
+        </header>
+
+        {!user?.token ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Duhet login</div>
+            <div className="at-emptySub">Token mungon, s’mund te lexohen rezervimet.</div>
+          </div>
+        ) : loading ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Duke ngarkuar...</div>
+            <div className="at-emptySub">Po marrim te dhenat nga serveri.</div>
+          </div>
+        ) : reservations.length === 0 ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Nuk ke asnje rezervim</div>
+            <div className="at-emptySub">Kur te krijosh nje rezervim, do shfaqet ketu.</div>
+          </div>
+        ) : (
+          <div className="at-tableWrap">
+            <table className="at-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Ora</th>
+                  <th className="at-thRight">Persona</th>
+                  <th className="at-thRight">Statusi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+
+              <tbody>
+                {reservations.map((r) => (
+                  <tr key={r._id}>
+                    <td className="at-tdMuted">
+                      {r.date ? new Date(r.date).toLocaleDateString() : "-"}
+                    </td>
+                    <td className="at-tdStrong">{r.time || "-"}</td>
+                    <td className="at-tdRight at-tdStrong">{r.peopleCount ?? "-"}</td>
+                    <td className="at-tdRight">
+                      <span className={statusClass(r.status)}>{r.status || "N/A"}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

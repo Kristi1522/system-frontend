@@ -1,63 +1,106 @@
-// Importimi i hook-ëve nga React dhe axios për komunikim me backend
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
+import "./adminTables.css";
 
-// Komponenti që shfaq takimet personale të përdoruesit
 export default function MyMeetings() {
-  const [meetings, setMeetings] = useState([]); // Gjendja për ruajtjen e listës së takimeve
+  const [meetings, setMeetings] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Merr të dhënat e user-it nga localStorage
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = useMemo(() => {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  }, []);
 
-  // useEffect që ekzekutohet vetëm një herë kur ngarkohet komponenti
   useEffect(() => {
     const fetchMyMeetings = async () => {
+      if (!user?.token) return;
+
       try {
-        // Kërkesa GET për të marrë takimet e përdoruesit aktual
+        setLoading(true);
         const res = await axios.get(`${API_URL}/api/meetings/my`, {
           headers: { Authorization: `Bearer ${user.token}` },
         });
-        setMeetings(res.data); // Ruaj takimet në gjendje
+        setMeetings(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
-        console.error("Gabim gjatë marrjes së takimeve të mia:", err);
+        console.error("Gabim gjate marrjes se takimeve te mia:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchMyMeetings();
-  }, []); // [] siguron që të ekzekutohet vetëm një herë
+  }, [user]);
 
-  // JSX për shfaqjen e takimeve
+  const statusClass = (s) => {
+    const v = String(s || "").toLowerCase();
+    if (v.includes("approved") || v.includes("confirmed") || v.includes("done") || v.includes("ok"))
+      return "at-badge at-ok";
+    if (v.includes("pending") || v.includes("wait"))
+      return "at-badge at-warn";
+    if (v.includes("reject") || v.includes("cancel"))
+      return "at-badge at-bad";
+    return "at-badge";
+  };
+
   return (
-    <div className="p-6 min-h-screen bg-background text-textdark">
-      <h2 className="text-3xl font-bold mb-6 text-primary">📅 Takimet e mia</h2>
+    <div className="at-page">
+      <div className="at-shell">
+        <header className="at-head">
+          <div className="at-badgeTop">User • Meetings</div>
 
-      {/* Nëse nuk ka takime */}
-      {meetings.length === 0 ? (
-        <p className="text-gray-500">Nuk keni asnjë takim.</p>
-      ) : (
-        // Tabela që shfaq takimet
-        <table className="w-full border-collapse bg-white shadow-md rounded">
-          <thead className="bg-gray-100 text-sm">
-            <tr>
-              <th className="border px-4 py-2">Data</th>
-              <th className="border px-4 py-2">Ora</th>
-              <th className="border px-4 py-2">Tema</th>
-              <th className="border px-4 py-2">Statusi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {meetings.map((m) => (
-              <tr key={m._id} className="hover:bg-gray-50">
-                <td className="border px-4 py-2">{new Date(m.date).toLocaleDateString()}</td>
-                <td className="border px-4 py-2">{m.hour}</td>
-                <td className="border px-4 py-2">{m.topic}</td>
-                <td className="border px-4 py-2">{m.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+          <div className="at-headRow">
+            <h2 className="at-title">Takimet e mia</h2>
+          </div>
+
+          <p className="at-subtitle">Ketu shikon takimet e tua dhe statusin e tyre.</p>
+        </header>
+
+        {!user?.token ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Duhet login</div>
+            <div className="at-emptySub">Token mungon, s’mund te lexohen takimet.</div>
+          </div>
+        ) : loading ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Duke ngarkuar...</div>
+            <div className="at-emptySub">Po marrim te dhenat nga serveri.</div>
+          </div>
+        ) : meetings.length === 0 ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Nuk ke asnje takim</div>
+            <div className="at-emptySub">Kur admini te krijoje nje takim, do shfaqet ketu.</div>
+          </div>
+        ) : (
+          <div className="at-tableWrap">
+            <table className="at-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Ora</th>
+                  <th>Tema</th>
+                  <th className="at-thRight">Statusi</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {meetings.map((m) => (
+                  <tr key={m._id}>
+                    <td className="at-tdMuted">
+                      {m.date ? new Date(m.date).toLocaleDateString() : "-"}
+                    </td>
+                    <td className="at-tdStrong">{m.hour || "-"}</td>
+                    <td>{m.topic || "-"}</td>
+                    <td className="at-tdRight">
+                      <span className={statusClass(m.status)}>{m.status || "N/A"}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

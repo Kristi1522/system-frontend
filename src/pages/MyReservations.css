@@ -1,0 +1,234 @@
+:root {
+  --bg: #f6f7fb;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+
+  --primary: #2563eb;
+  --secondary: #4f46e5;
+
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --bad: #ef4444;
+
+  --border: rgba(15, 23, 42, 0.12);
+  --radius: 18px;
+
+  --shadow: 0 18px 50px rgba(15, 23, 42, 0.1);
+  --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ===== PAGE ===== */
+.at-page {
+  min-height: 100vh;
+  padding: 28px 16px;
+  background:
+    radial-gradient(900px 500px at 15% -10%, rgba(37, 99, 235, 0.10), transparent 55%),
+    radial-gradient(700px 420px at 85% 0%, rgba(79, 70, 229, 0.10), transparent 55%),
+    var(--bg);
+  color: var(--text);
+}
+
+.at-shell {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+}
+
+/* ===== HEADER ===== */
+.at-head {
+  margin-bottom: 16px;
+}
+
+.at-badgeTop {
+  display: inline-flex;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+
+.at-headRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 12px;
+  gap: 12px;
+}
+
+.at-title {
+  font-size: clamp(24px, 3vw, 38px);
+  margin: 0;
+  letter-spacing: -0.6px;
+}
+
+.at-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.at-headActions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ===== BUTTONS ===== */
+.at-btnGhost {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+  transition: all 160ms ease;
+}
+
+.at-btnGhost:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.at-btnGhost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ===== EMPTY STATE ===== */
+.at-empty {
+  margin-top: 24px;
+  padding: 22px;
+  text-align: center;
+  border-radius: var(--radius);
+  border: 1px dashed rgba(15, 23, 42, 0.25);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.at-emptyTitle {
+  font-weight: 800;
+}
+
+.at-emptySub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ===== TABLE ===== */
+.at-tableWrap {
+  margin-top: 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: var(--shadow);
+}
+
+.at-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.at-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--muted);
+  font-weight: 800;
+  text-align: left;
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.at-table tbody td {
+  padding: 14px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.at-table tbody tr:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.at-tdStrong {
+  font-weight: 800;
+}
+
+.at-tdMuted {
+  color: var(--muted);
+}
+
+.at-thRight,
+.at-tdRight {
+  text-align: right;
+}
+
+/* ===== BADGES ===== */
+.at-badge {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
+}
+
+.at-ok {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #065f46;
+}
+
+.at-warn {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #92400e;
+}
+
+.at-bad {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #7f1d1d;
+}
+
+/* ===== LINKS ===== */
+.at-linkDanger {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--bad);
+}
+
+.at-linkDanger:hover {
+  text-decoration: underline;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 820px) {
+  .at-headRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .at-tableWrap {
+    overflow-x: auto;
+  }
+
+  .at-table {
+    min-width: 780px;
+  }
+}

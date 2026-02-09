@@ -1,149 +1,296 @@
-// Importimi i hooks dhe axios
-import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
+import "./orders.css";
 
 const API_URL = "https://system-backend-0i7a.onrender.com";
 
 export default function Orders() {
-  // Lista e pjatave që vjen nga serveri
   const [dishes, setDishes] = useState([]);
-  // Lista e pjatave të përzgjedhura për porosi
   const [orderItems, setOrderItems] = useState([]);
-  // Merr tokenin nga localStorage
-  const token = JSON.parse(localStorage.getItem("user"))?.token;
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Merr pjatat nga serveri kur komponenti ngarkohet
+  const token = useMemo(() => {
+    const raw = localStorage.getItem("user");
+    const u = raw ? JSON.parse(raw) : null;
+    return u?.token || localStorage.getItem("token") || "";
+  }, []);
+
   useEffect(() => {
     const fetchDishes = async () => {
+      if (!token) return;
       try {
+        setLoading(true);
         const res = await axios.get(`${API_URL}/dishes`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setDishes(res.data);
+        setDishes(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
-        console.error("❌ Error fetching dishes:", err);
+        console.error("Error fetching dishes:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchDishes();
   }, [token]);
 
-  // Shton ose rrit sasinë e një pjate në porosi
   const addToOrder = (dish) => {
-    const exists = orderItems.find((item) => item.dishId === dish._id);
-    if (exists) {
-      setOrderItems(orderItems.map((item) =>
-        item.dishId === dish._id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-    } else {
-      setOrderItems([...orderItems, { dishId: dish._id, quantity: 1 }]);
-    }
+    setOrderItems((prev) => {
+      const exists = prev.find((x) => x.dishId === dish._id);
+      if (exists) {
+        return prev.map((x) =>
+          x.dishId === dish._id ? { ...x, quantity: x.quantity + 1 } : x
+        );
+      }
+      return [...prev, { dishId: dish._id, quantity: 1 }];
+    });
   };
 
-  // Dërgon porosinë në server dhe e printon faturën
+  const inc = (dishId) => {
+    setOrderItems((prev) =>
+      prev.map((x) => (x.dishId === dishId ? { ...x, quantity: x.quantity + 1 } : x))
+    );
+  };
+
+  const dec = (dishId) => {
+    setOrderItems((prev) =>
+      prev
+        .map((x) => (x.dishId === dishId ? { ...x, quantity: x.quantity - 1 } : x))
+        .filter((x) => x.quantity > 0)
+    );
+  };
+
+  const removeItem = (dishId) => {
+    setOrderItems((prev) => prev.filter((x) => x.dishId !== dishId));
+  };
+
+  const getDish = (dishId) => dishes.find((d) => d._id === dishId);
+
+  const totalPrice = orderItems.reduce((sum, item) => {
+    const dish = getDish(item.dishId);
+    return sum + (Number(dish?.price) || 0) * item.quantity;
+  }, 0);
+
+  const totalCount = orderItems.reduce((s, x) => s + x.quantity, 0);
+
   const submitAndPrintOrder = async () => {
-    // Llogarit çmimin total
-    const totalPrice = orderItems.reduce((sum, item) => {
-      const dish = dishes.find((d) => d._id === item.dishId);
-      return sum + (dish?.price || 0) * item.quantity;
-    }, 0);
+    if (!token) return;
+    if (orderItems.length === 0) return;
 
     try {
-      // Dërgo porosinë në backend
-      await axios.post(`${API_URL}/orders`, {
-        items: orderItems,
-        totalPrice,
-      }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      setSubmitting(true);
 
-      alert("✅ Order submitted successfully!");
+      await axios.post(
+        `${API_URL}/orders`,
+        { items: orderItems, totalPrice },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      // Printo faturën
+      // Print
       const printWindow = window.open("", "_blank");
+      const now = new Date();
+
+      const rowsHtml = orderItems
+        .map((item) => {
+          const dish = getDish(item.dishId);
+          const name = dish?.name || "Unknown Name";
+          const price = Number(dish?.price || 0);
+          const line = (price * item.quantity).toFixed(2);
+          return `<div style="display:flex;justify-content:space-between;gap:12px;margin:6px 0;">
+              <div>${name} x ${item.quantity}</div>
+              <div>${line}€</div>
+            </div>`;
+        })
+        .join("");
+
       printWindow.document.write(`
-        <h3>🧾 Order Receipt</h3>
-        <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-        <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
-        <hr />
-        ${orderItems.map((item) => {
-          const dish = dishes.find((d) => d._id === item.dishId);
-          return `<div>${dish?.name || "Unknown Name"} x ${item.quantity}</div>`;
-        }).join('')}
-        <hr />
-        <p><strong>Total:</strong> ${totalPrice.toFixed(2)}€</p>
+        <div style="font-family: Arial, sans-serif; padding: 16px; max-width: 420px; margin: 0 auto;">
+          <h2 style="margin:0 0 8px;">🧾 Order Receipt</h2>
+          <div style="color:#555; margin-bottom:10px;">
+            <div><strong>Date:</strong> ${now.toLocaleDateString()}</div>
+            <div><strong>Time:</strong> ${now.toLocaleTimeString()}</div>
+          </div>
+          <hr />
+          ${rowsHtml}
+          <hr />
+          <div style="display:flex;justify-content:space-between;font-weight:700;">
+            <div>Total</div>
+            <div>${totalPrice.toFixed(2)}€</div>
+          </div>
+        </div>
       `);
       printWindow.document.close();
       printWindow.print();
 
-      // Pasi porosia u dërgua, pastro listën
+      alert("✅ Order submitted successfully!");
       setOrderItems([]);
     } catch (err) {
-      console.error("❌ Error submitting order:", err);
+      console.error("Error submitting order:", err);
       alert("Error submitting order.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // JSX për shfaqjen e faqes së porosisë
+  const filteredDishes = dishes.filter((d) => {
+    const s = q.trim().toLowerCase();
+    if (!s) return true;
+    return (
+      String(d?.name || "").toLowerCase().includes(s) ||
+      String(d?.description || "").toLowerCase().includes(s)
+    );
+  });
+
   return (
-    <div className="min-h-screen bg-background p-6 text-textdark">
-      <h2 className="text-4xl font-bold text-primary mb-8">🛒 Create Order</h2>
+    <div className="or-page">
+      <div className="or-shell">
+        <header className="or-head">
+          <div className="or-badge">Waiter • Orders</div>
 
-      {/* Nëse nuk ka pjata, shfaq mesazh */}
-      {dishes.length === 0 ? (
-        <p className="text-gray-500 mb-8">No dishes found.</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {dishes.map((dish) => (
-            <div key={dish._id} className="bg-white p-4 rounded-lg shadow-md hover:bg-gray-100 transition flex flex-col gap-2">
-              <strong className="text-lg text-primary">{dish.name}</strong>
-              <span className="text-gray-600">€{dish.price.toFixed(2)}</span>
-              <p className="text-sm text-gray-500">{dish.description}</p>
-              <button
-                onClick={() => addToOrder(dish)}
-                className="mt-auto bg-primary text-white py-2 rounded-lg font-semibold hover:bg-secondary transition"
-              >
-                Add
-              </button>
+          <div className="or-headRow">
+            <div>
+              <h2 className="or-title">Create Order</h2>
+              <p className="or-subtitle">Zgjidh pjata nga menuja dhe printo faturen.</p>
             </div>
-          ))}
-        </div>
-      )}
 
-      <hr className="border-t-2 border-gray-200 mb-8" />
+            <div className="or-search">
+              <label className="or-label" htmlFor="q">Search</label>
+              <input
+                id="q"
+                className="or-input"
+                placeholder="Kerko pjate..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </div>
+          </div>
+        </header>
 
-      <h3 className="text-2xl font-semibold text-secondary mb-4">📋 Current Order:</h3>
+        {!token ? (
+          <div className="or-empty">
+            <div className="or-emptyTitle">Duhet login</div>
+            <div className="or-emptySub">Token mungon, s’mund te shfaqet menuja.</div>
+          </div>
+        ) : (
+          <div className="or-layout">
+            {/* MENU */}
+            <section className="or-card">
+              <div className="or-cardHead">
+                <h3 className="or-cardTitle">Menu</h3>
+                <span className="or-pill">
+                  {loading ? "Loading..." : `${filteredDishes.length} dishes`}
+                </span>
+              </div>
 
-      {/* Nëse nuk ka asnjë pjatë të përzgjedhur */}
-      {orderItems.length === 0 ? (
-        <p className="text-gray-500 mb-8">No items selected.</p>
-      ) : (
-        <ul className="list-disc list-inside mb-8">
-          {orderItems.map((item) => {
-            const dish = dishes.find((d) => d._id === item.dishId);
-            return (
-              <li key={item.dishId} className="text-lg">
-                {dish?.name || "Unknown Name"} x {item.quantity}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+              {loading ? (
+                <div className="or-empty or-empty--inCard">
+                  <div className="or-emptyTitle">Duke ngarkuar...</div>
+                  <div className="or-emptySub">Po marrim pjatat.</div>
+                </div>
+              ) : filteredDishes.length === 0 ? (
+                <div className="or-empty or-empty--inCard">
+                  <div className="or-emptyTitle">S’ka rezultate</div>
+                  <div className="or-emptySub">Provo nje kerkese tjeter.</div>
+                </div>
+              ) : (
+                <div className="or-grid">
+                  {filteredDishes.map((dish) => (
+                    <div key={dish._id} className="or-item">
+                      <div className="or-itemTop">
+                        <div className="or-name" title={dish.name}>{dish.name}</div>
+                        <div className="or-price">{Number(dish.price || 0).toFixed(2)}€</div>
+                      </div>
 
-      {/* Butoni për të dërguar dhe printuar porosinë */}
-      <button
-        onClick={submitAndPrintOrder}
-        disabled={orderItems.length === 0}
-        className={`w-full max-w-md mx-auto block py-3 px-6 rounded-lg font-bold transition ${
-          orderItems.length === 0
-            ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-            : "bg-primary text-white hover:bg-secondary"
-        }`}
-      >
-        🚀 Submit and Print Invoice
-      </button>
+                      {dish.description ? (
+                        <div className="or-desc" title={dish.description}>
+                          {dish.description}
+                        </div>
+                      ) : (
+                        <div className="or-desc or-desc--empty">No description</div>
+                      )}
+
+                      <button type="button" className="or-btn" onClick={() => addToOrder(dish)}>
+                        Add
+                        <span className="or-btnGlow" aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* CURRENT ORDER */}
+            <aside className="or-side">
+              <div className="or-sideCard">
+                <div className="or-sideHead">
+                  <div>
+                    <div className="or-sideTitle">Current Order</div>
+                    <div className="or-sideSub">{totalCount} items</div>
+                  </div>
+                  <div className="or-total">
+                    <div className="or-totalLabel">Total</div>
+                    <div className="or-totalValue">{totalPrice.toFixed(2)}€</div>
+                  </div>
+                </div>
+
+                {orderItems.length === 0 ? (
+                  <div className="or-empty or-empty--inCard">
+                    <div className="or-emptyTitle">No items selected</div>
+                    <div className="or-emptySub">Shto pjata nga menuja.</div>
+                  </div>
+                ) : (
+                  <div className="or-lines">
+                    {orderItems.map((item) => {
+                      const dish = getDish(item.dishId);
+                      const name = dish?.name || "Unknown";
+                      const unit = Number(dish?.price || 0);
+                      const line = unit * item.quantity;
+
+                      return (
+                        <div key={item.dishId} className="or-line">
+                          <div className="or-lineMain">
+                            <div className="or-lineName" title={name}>{name}</div>
+                            <div className="or-linePrice">{line.toFixed(2)}€</div>
+                          </div>
+
+                          <div className="or-lineBottom">
+                            <div className="or-qty">
+                              <button type="button" className="or-qtyBtn" onClick={() => dec(item.dishId)}>-</button>
+                              <div className="or-qtyNum">{item.quantity}</div>
+                              <button type="button" className="or-qtyBtn" onClick={() => inc(item.dishId)}>+</button>
+                            </div>
+
+                            <button type="button" className="or-remove" onClick={() => removeItem(item.dishId)}>
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="or-submit"
+                  onClick={submitAndPrintOrder}
+                  disabled={orderItems.length === 0 || submitting}
+                  title={orderItems.length === 0 ? "S’ka items" : "Dergo dhe printo"}
+                >
+                  {submitting ? "Submitting..." : "Submit and Print Invoice"}
+                  <span className="or-submitGlow" aria-hidden="true" />
+                </button>
+
+                <div className="or-hint">
+                  Printimi hap nje dritare te re. Sigurohu qe browseri s’e bllokon pop-up.
+                </div>
+              </div>
+            </aside>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

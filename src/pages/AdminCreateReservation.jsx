@@ -1,128 +1,168 @@
-// Importimi i hooks nga React dhe axios për thirrje HTTP
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { API_URL } from "../config"; // URL-ja bazë e API-së, nga një file konfigurimi
+import { API_URL } from "../config";
+import "./adminForms.css";
 
-// Komponenti për të krijuar një rezervim si admin
 export default function AdminCreateReservation() {
-  // Lista e përdoruesve që mund të përzgjidhen
   const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Gjendja e formës për rezervimin
   const [form, setForm] = useState({
-    userId: "",          // ID e përdoruesit të përzgjedhur
-    date: "",            // Data e rezervimit
-    time: "",            // Ora e rezervimit
-    peopleCount: 1       // Numri i personave
+    userId: "",
+    date: "",
+    time: "",
+    peopleCount: 1,
   });
 
-  // Merr përdoruesin aktual (adminin) nga localStorage
-  const user = JSON.parse(localStorage.getItem("user"));
-
-  // useEffect për të marrë listën e përdoruesve sapo të ngarkohet komponenti
-  useEffect(() => {
-    axios.get(`${API_URL}/api/users`, {
-      headers: { Authorization: `Bearer ${user.token}` } // Token për autorizim
-    }).then(res => setUsers(res.data)); // Ruaj përdoruesit në state
+  const user = useMemo(() => {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
   }, []);
 
-  // Funksion që përditëson gjendjen e formës kur ndryshohet ndonjë input
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!user?.token) return;
+
+      try {
+        setLoadingUsers(true);
+        const res = await axios.get(`${API_URL}/api/users`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        setUsers(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        console.error("Gabim gjate marrjes se perdoruesve:", err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    fetchUsers();
+  }, [user]);
+
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value }); // Përditëso fushën përkatëse
+    const { name, value } = e.target;
+    setForm((p) => ({ ...p, [name]: name === "peopleCount" ? Number(value) : value }));
   };
 
-  // Funksioni për të dërguar rezervimin në backend
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Parandalon rifreskimin e faqes
-    try {
-      // Kërkesë POST për krijimin e rezervimit
-      await axios.post(`${API_URL}/api/reservations/by-admin`, form, {
-        headers: { Authorization: `Bearer ${user.token}` }, // Header me token
-      });
-      alert("✅ Rezervimi u krijua!"); // Njoftim suksesi
+    e.preventDefault();
 
-      // Pastro formën pas dërgimit
+    if (!user?.token) {
+      alert("❌ Duhet te jesh i loguar (token mungon).");
+      return;
+    }
+    if (!form.userId || !form.date || !form.time || !form.peopleCount) {
+      alert("❌ Ploteso te gjitha fushat.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await axios.post(`${API_URL}/api/reservations/by-admin`, form, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+
+      alert("✅ Rezervimi u krijua!");
       setForm({ userId: "", date: "", time: "", peopleCount: 1 });
     } catch (err) {
-      console.error(err); // Printo gabimin në console
-      alert("❌ Dështoi krijimi i rezervimit."); // Njoftim gabimi
+      console.error(err);
+      alert("❌ Deshtoi krijimi i rezervimit.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  // JSX që përfaqëson formën për krijimin e një rezervimi
   return (
-    <div className="min-h-screen p-4 bg-gray-100">
-      <h2 className="text-2xl font-semibold mb-4 text-center">Shto Rezervim</h2>
+    <div className="af-page">
+      <div className="af-shell">
+        <header className="af-head">
+          <div className="af-badge">Admin • Reservations</div>
+          <h2 className="af-title">Shto Rezervim</h2>
+          <p className="af-subtitle">
+            Zgjidh perdoruesin dhe vendos daten/oren + numrin e personave.
+          </p>
+        </header>
 
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white shadow rounded p-4 max-w-md mx-auto space-y-4"
-      >
-        {/* Zgjedhja e përdoruesit */}
-        <div>
-          <label className="block mb-1 font-medium">Përdoruesi</label>
-          <select
-            name="userId"
-            value={form.userId}
-            onChange={handleChange}
-            required
-            className="w-full border border-gray-300 px-3 py-2 rounded"
-          >
-            <option value="">Zgjidh përdoruesin</option>
-            {users.map((u) => (
-              <option key={u._id} value={u._id}>{u.email}</option>
-            ))}
-          </select>
-        </div>
+        <form onSubmit={handleSubmit} className="af-card">
+          <div className="af-grid">
+            <label className="af-field af-field--full">
+              <span className="af-label">Perdoruesi</span>
 
-        {/* Fusha për datën */}
-        <div>
-          <label className="block mb-1 font-medium">Data</label>
-          <input
-            type="date"
-            name="date"
-            value={form.date}
-            onChange={handleChange}
-            required
-            className="w-full border border-gray-300 px-3 py-2 rounded"
-          />
-        </div>
+              <div className="af-selectWrap">
+                <select
+                  name="userId"
+                  value={form.userId}
+                  onChange={handleChange}
+                  required
+                  className="af-select"
+                  disabled={loadingUsers || !user?.token}
+                >
+                  <option value="">
+                    {loadingUsers ? "Duke ngarkuar..." : "Zgjidh perdoruesin"}
+                  </option>
+                  {users.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.email}
+                    </option>
+                  ))}
+                </select>
+                <span className="af-selectIcon" aria-hidden="true">
+                  ▾
+                </span>
+              </div>
 
-        {/* Fusha për orën */}
-        <div>
-          <label className="block mb-1 font-medium">Ora</label>
-          <input
-            type="time"
-            name="time"
-            value={form.time}
-            onChange={handleChange}
-            required
-            className="w-full border border-gray-300 px-3 py-2 rounded"
-          />
-        </div>
+              {!user?.token ? (
+                <span className="af-help af-help--warn">Duhet login per te pare perdoruesit.</span>
+              ) : null}
+            </label>
 
-        {/* Fusha për numrin e personave */}
-        <div>
-          <label className="block mb-1 font-medium">Numri i personave</label>
-          <input
-            type="number"
-            name="peopleCount"
-            min="1"
-            value={form.peopleCount}
-            onChange={handleChange}
-            required
-            className="w-full border border-gray-300 px-3 py-2 rounded"
-          />
-        </div>
+            <label className="af-field">
+              <span className="af-label">Data</span>
+              <input
+                type="date"
+                name="date"
+                value={form.date}
+                onChange={handleChange}
+                required
+                className="af-input"
+              />
+            </label>
 
-        {/* Butoni për të dërguar formën */}
-        <button
-          type="submit"
-          className="bg-primary hover:bg-secondary text-white font-semibold py-2 px-4 rounded w-full"
-        >
-          Krijo Rezervim
-        </button>
-      </form>
+            <label className="af-field">
+              <span className="af-label">Ora</span>
+              <input
+                type="time"
+                name="time"
+                value={form.time}
+                onChange={handleChange}
+                required
+                className="af-input"
+              />
+            </label>
+
+            <label className="af-field af-field--full">
+              <span className="af-label">Numri i personave</span>
+              <input
+                type="number"
+                name="peopleCount"
+                min="1"
+                value={form.peopleCount}
+                onChange={handleChange}
+                required
+                className="af-input"
+              />
+            </label>
+          </div>
+
+          <button className="af-btn" type="submit" disabled={submitting || !user?.token}>
+            {submitting ? "Duke krijuar..." : "Krijo Rezervim"}
+            <span className="af-btnGlow" aria-hidden="true" />
+          </button>
+
+          <p className="af-hint">Sugjerim: mos lejo rezervime me 0 persona (min 1).</p>
+        </form>
+      </div>
     </div>
   );
 }

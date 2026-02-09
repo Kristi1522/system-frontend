@@ -1,84 +1,136 @@
-// Importim i hooks nga React dhe axios për thirrje HTTP
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { API_URL } from "../config"; // URL-ja bazë për API-në nga një file konfigurimi
+import { API_URL } from "../config";
+import "./adminTables.css";
 
-// Komponenti për adminin që shfaq dhe menaxhon takimet
 export default function AdminMeetings() {
-  const [meetings, setMeetings] = useState([]); // Gjendja për listën e takimeve
-  const user = JSON.parse(localStorage.getItem("user")); // Merr tokenin nga localStorage për autorizim
+  const [meetings, setMeetings] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // useEffect për të ngarkuar takimet në momentin kur ngarkohet komponenti
-  useEffect(() => {
-    fetchMeetings(); // Thirrja për të marrë takimet nga API
+  const user = useMemo(() => {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
   }, []);
 
-  // Funksion që merr listën e takimeve nga backend-i
+  useEffect(() => {
+    fetchMeetings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchMeetings = async () => {
+    if (!user?.token) return;
+
     try {
+      setLoading(true);
       const res = await axios.get(`${API_URL}/api/meetings`, {
-        headers: { Authorization: `Bearer ${user.token}` }, // Dërgo tokenin për autorizim
+        headers: { Authorization: `Bearer ${user.token}` },
       });
-      setMeetings(res.data); // Ruaj takimet në state
+      setMeetings(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error("Gabim gjatë marrjes së takimeve:", err); // Në rast gabimi, printo në console
+      console.error("Gabim gjate marrjes se takimeve:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Funksion për të fshirë një takim në bazë të ID-së së tij
   const handleDelete = async (id) => {
-    if (!window.confirm("Fshi takimin?")) return; // Pyet konfirmim para fshirjes
+    if (!window.confirm("Fshi takimin?")) return;
+
     try {
       await axios.delete(`${API_URL}/api/meetings/${id}`, {
         headers: { Authorization: `Bearer ${user.token}` },
       });
-      setMeetings((prev) => prev.filter((m) => m._id !== id)); // Përditëso gjendjen pas fshirjes
+      setMeetings((prev) => prev.filter((m) => m._id !== id));
     } catch (err) {
-      console.error("Gabim gjatë fshirjes së takimit:", err);
+      console.error("Gabim gjate fshirjes se takimit:", err);
+      alert("Deshtoi fshirja.");
     }
   };
 
-  // JSX për përfaqësimin vizual të listës së takimeve
-  return (
-    <div className="p-6">
-      <h2 className="text-3xl font-bold mb-6 text-primary">📋 Takimet</h2>
+  const statusClass = (s) => {
+    const v = String(s || "").toLowerCase();
+    if (v.includes("approved") || v.includes("done") || v.includes("ok")) return "at-badge at-ok";
+    if (v.includes("pending") || v.includes("wait")) return "at-badge at-warn";
+    if (v.includes("reject") || v.includes("cancel")) return "at-badge at-bad";
+    return "at-badge";
+  };
 
-      {/* Nëse nuk ka takime, shfaq mesazh informues */}
-      {meetings.length === 0 ? (
-        <p className="text-gray-500">Nuk ka takime.</p>
-      ) : (
-        // Nëse ka takime, shfaqen në formë tabele
-        <table className="w-full border-collapse">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border px-4 py-2 text-left">Përdoruesi</th>
-              <th className="border px-4 py-2">Email</th>
-              <th className="border px-4 py-2">Data</th>
-              <th className="border px-4 py-2">Ora</th>
-              <th className="border px-4 py-2">Tema</th>
-              <th className="border px-4 py-2">Statusi</th>
-              <th className="border px-4 py-2">Veprim</th>
-            </tr>
-          </thead>
-          <tbody>
-            {meetings.map((m) => (
-              <tr key={m._id} className="hover:bg-gray-50">
-                <td className="border px-4 py-2">{m.user?.name || "Anonim"}</td>
-                <td className="border px-4 py-2">{m.user?.email}</td>
-                <td className="border px-4 py-2">{new Date(m.date).toLocaleDateString()}</td>
-                <td className="border px-4 py-2">{m.hour}</td>
-                <td className="border px-4 py-2">{m.topic}</td>
-                <td className="border px-4 py-2">{m.status}</td>
-                <td className="border px-4 py-2">
-                  <button onClick={() => handleDelete(m._id)} className="text-red-500 hover:underline">
-                    🗑️ Fshi
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+  return (
+    <div className="at-page">
+      <div className="at-shell">
+        <header className="at-head">
+          <div className="at-badgeTop">Admin • Meetings</div>
+          <div className="at-headRow">
+            <h2 className="at-title">Takimet</h2>
+
+            <div className="at-headActions">
+              <button type="button" className="at-btnGhost" onClick={fetchMeetings} disabled={loading}>
+                {loading ? "Loading..." : "Refresh"}
+              </button>
+            </div>
+          </div>
+          <p className="at-subtitle">Menaxho takimet (shfaq, kontrollo, fshi).</p>
+        </header>
+
+        {!user?.token ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Duhet login</div>
+            <div className="at-emptySub">Token mungon, s’mund te lexohen takimet.</div>
+          </div>
+        ) : loading ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Duke ngarkuar...</div>
+            <div className="at-emptySub">Po marrim te dhenat nga serveri.</div>
+          </div>
+        ) : meetings.length === 0 ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Nuk ka takime</div>
+            <div className="at-emptySub">Kur te krijohen, do shfaqen ketu.</div>
+          </div>
+        ) : (
+          <div className="at-tableWrap">
+            <table className="at-table">
+              <thead>
+                <tr>
+                  <th>Perdoruesi</th>
+                  <th>Email</th>
+                  <th>Data</th>
+                  <th>Ora</th>
+                  <th>Tema</th>
+                  <th>Statusi</th>
+                  <th className="at-thRight">Veprim</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {meetings.map((m) => (
+                  <tr key={m._id}>
+                    <td className="at-tdStrong">{m.user?.name || "Anonim"}</td>
+                    <td className="at-tdMuted">{m.user?.email || "-"}</td>
+                    <td className="at-tdMuted">
+                      {m.date ? new Date(m.date).toLocaleDateString() : "-"}
+                    </td>
+                    <td className="at-tdMuted">{m.hour || "-"}</td>
+                    <td>{m.topic || "-"}</td>
+                    <td>
+                      <span className={statusClass(m.status)}>{m.status || "N/A"}</span>
+                    </td>
+                    <td className="at-tdRight">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(m._id)}
+                        className="at-linkDanger"
+                      >
+                        Fshi
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

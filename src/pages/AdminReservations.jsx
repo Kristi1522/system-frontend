@@ -1,98 +1,147 @@
-// Importime nga React dhe axios për API
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { API_URL } from "../config"; // URL-ja bazë e API-së
+import { API_URL } from "../config";
+import "./adminTables.css";
 
-// Komponenti për adminin që menaxhon rezervimet
 export default function AdminReservations() {
-  const [reservations, setReservations] = useState([]); // Lista e rezervimeve
-  const user = JSON.parse(localStorage.getItem("user")); // Merr përdoruesin nga localStorage (për tokenin)
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // useEffect që ngarkohet një herë kur komponenti renderohet
-  useEffect(() => {
-    fetchReservations(); // Merr të gjitha rezervimet nga backend
+  const user = useMemo(() => {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
   }, []);
 
-  // Kërkesë GET për të marrë rezervimet
+  useEffect(() => {
+    fetchReservations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchReservations = async () => {
+    if (!user?.token) return;
+
     try {
+      setLoading(true);
       const res = await axios.get(`${API_URL}/api/reservations`, {
-        headers: {
-          Authorization: `Bearer ${user.token}`, // Dërgo tokenin për autorizim
-        },
+        headers: { Authorization: `Bearer ${user.token}` },
       });
-      setReservations(res.data); // Ruaj rezultatin në gjendje (state)
+      setReservations(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error("Gabim gjatë marrjes së rezervimeve:", err);
+      console.error("Gabim gjate marrjes se rezervimeve:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Fshirja e një rezervimi me konfirmim paraprak
   const handleDelete = async (id) => {
-    if (!window.confirm("A je i sigurt që do ta fshish këtë rezervim?")) return;
+    if (!window.confirm("A je i sigurt qe do ta fshish kete rezervim?")) return;
 
     try {
       await axios.delete(`${API_URL}/api/reservations/${id}`, {
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
+        headers: { Authorization: `Bearer ${user.token}` },
       });
-
-      // Përditëso listën lokale duke hequr rezervimin e fshirë
       setReservations((prev) => prev.filter((r) => r._id !== id));
       alert("✅ Rezervimi u fshi me sukses.");
     } catch (err) {
-      console.error("❌ Gabim gjatë fshirjes:", err);
-      alert("Gabim gjatë fshirjes së rezervimit.");
+      console.error("Gabim gjate fshirjes:", err);
+      alert("Gabim gjate fshirjes se rezervimit.");
     }
   };
 
-  // JSX për përfaqësimin vizual të rezervimeve
-  return (
-    <div className="p-6">
-      <h2 className="text-3xl font-bold mb-6 text-primary">📋 Të gjitha rezervimet</h2>
+  const statusClass = (s) => {
+    const v = String(s || "").toLowerCase();
+    if (v.includes("approved") || v.includes("confirmed") || v.includes("done") || v.includes("ok"))
+      return "at-badge at-ok";
+    if (v.includes("pending") || v.includes("wait"))
+      return "at-badge at-warn";
+    if (v.includes("reject") || v.includes("cancel"))
+      return "at-badge at-bad";
+    return "at-badge";
+  };
 
-      {/* Nëse nuk ka asnjë rezervim */}
-      {reservations.length === 0 ? (
-        <p className="text-gray-500">Nuk ka rezervime.</p>
-      ) : (
-        // Tabela me rezervimet
-        <table className="w-full border-collapse mt-4">
-          <thead className="bg-gray-100 text-sm">
-            <tr>
-              <th className="border px-4 py-2 text-left">Përdoruesi</th>
-              <th className="border px-4 py-2 text-left">Email</th>
-              <th className="border px-4 py-2 text-left">Data</th>
-              <th className="border px-4 py-2 text-left">Ora</th>
-              <th className="border px-4 py-2 text-left">Persona</th>
-              <th className="border px-4 py-2 text-left">Statusi</th>
-              <th className="border px-4 py-2 text-left">Veprim</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reservations.map((r) => (
-              <tr key={r._id} className="hover:bg-gray-50">
-                <td className="border px-4 py-2">{r.user?.name || "Anonim"}</td>
-                <td className="border px-4 py-2">{r.user?.email}</td>
-                <td className="border px-4 py-2">
-                  {new Date(r.date).toLocaleDateString()}
-                </td>
-                <td className="border px-4 py-2">{r.time}</td>
-                <td className="border px-4 py-2">{r.peopleCount}</td>
-                <td className="border px-4 py-2">{r.status}</td>
-                <td className="border px-4 py-2">
-                  <button
-                    onClick={() => handleDelete(r._id)}
-                    className="text-red-500 hover:underline"
-                  >
-                    🗑️ Fshi
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+  return (
+    <div className="at-page">
+      <div className="at-shell">
+        <header className="at-head">
+          <div className="at-badgeTop">Admin • Reservations</div>
+
+          <div className="at-headRow">
+            <h2 className="at-title">Te gjitha rezervimet</h2>
+
+            <div className="at-headActions">
+              <button
+                type="button"
+                className="at-btnGhost"
+                onClick={fetchReservations}
+                disabled={loading}
+              >
+                {loading ? "Loading..." : "Refresh"}
+              </button>
+            </div>
+          </div>
+
+          <p className="at-subtitle">Menaxho rezervimet (shfaq, kontrollo, fshi).</p>
+        </header>
+
+        {!user?.token ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Duhet login</div>
+            <div className="at-emptySub">Token mungon, s’mund te lexohen rezervimet.</div>
+          </div>
+        ) : loading ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Duke ngarkuar...</div>
+            <div className="at-emptySub">Po marrim te dhenat nga serveri.</div>
+          </div>
+        ) : reservations.length === 0 ? (
+          <div className="at-empty">
+            <div className="at-emptyTitle">Nuk ka rezervime</div>
+            <div className="at-emptySub">Kur te krijohen, do shfaqen ketu.</div>
+          </div>
+        ) : (
+          <div className="at-tableWrap">
+            <table className="at-table">
+              <thead>
+                <tr>
+                  <th>Perdoruesi</th>
+                  <th>Email</th>
+                  <th>Data</th>
+                  <th>Ora</th>
+                  <th>Persona</th>
+                  <th>Statusi</th>
+                  <th className="at-thRight">Veprim</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {reservations.map((r) => (
+                  <tr key={r._id}>
+                    <td className="at-tdStrong">{r.user?.name || "Anonim"}</td>
+                    <td className="at-tdMuted">{r.user?.email || "-"}</td>
+                    <td className="at-tdMuted">
+                      {r.date ? new Date(r.date).toLocaleDateString() : "-"}
+                    </td>
+                    <td className="at-tdMuted">{r.time || "-"}</td>
+                    <td className="at-tdStrong">{r.peopleCount ?? "-"}</td>
+                    <td>
+                      <span className={statusClass(r.status)}>{r.status || "N/A"}</span>
+                    </td>
+                    <td className="at-tdRight">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(r._id)}
+                        className="at-linkDanger"
+                      >
+                        Fshi
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
