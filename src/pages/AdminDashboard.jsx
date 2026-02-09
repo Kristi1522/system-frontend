@@ -13,7 +13,7 @@ import {
   CalendarPlus,
 } from "lucide-react";
 import axios from "axios";
-import "./adminDashboard.css";
+import "./AdminDashboard.css";
 
 const API_URL = "https://system-backend-0i7a.onrender.com";
 
