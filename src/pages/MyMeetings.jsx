@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { API_URL } from "../config";
-import "./adminTables.css";
+import "./MyMeetings.css";
 
 export default function MyMeetings() {
   const [meetings, setMeetings] = useState([]);

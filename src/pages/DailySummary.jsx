@@ -4,7 +4,7 @@ import axios from "axios";
 import BarChartComponent from "../components/BarChartComponent";
 import DailyRevenueChart from "../components/DailyRevenueChart";
 
-import "./dailySummary.css";
+import "./DailySummary.css";
 
 const API_URL = "https://system-backend-0i7a.onrender.com";
 

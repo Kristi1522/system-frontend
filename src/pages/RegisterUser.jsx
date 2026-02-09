@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import axios from "axios";
-import "./registerUser.css";
+import "./RegisterUser.css";
 
 const API_URL = "https://system-backend-0i7a.onrender.com";
 

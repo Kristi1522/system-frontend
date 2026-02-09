@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import "./profile.css";
+import "./Profile.css";
 
 const API_URL = "https://system-backend-0i7a.onrender.com";
 

@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-import "./dailyRevenueChart.css";
+import "./DailyRevenueChart.css";
 
 export default function DailyRevenueChart({ data }) {
   return (

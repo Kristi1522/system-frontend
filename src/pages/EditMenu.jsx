@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import "./editMenu.css";
+import "./EditMenu.css";
 
 const API_URL = "https://system-backend-0i7a.onrender.com";
 

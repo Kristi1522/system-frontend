@@ -9,7 +9,7 @@ import {
   LabelList,
 } from "recharts";
 
-import "./barChartComponent.css";
+import "./BarChartComponent.css";
 
 export default function BarChartComponent({ data }) {
   return (
